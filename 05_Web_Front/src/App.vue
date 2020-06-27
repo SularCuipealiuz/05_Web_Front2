@@ -568,6 +568,8 @@
             _this.$bus.$emit("updateCurrentDelegate", resJson.data)
           } else if (resJson.action === 'getHistory') {
             _this.$bus.$emit("onGetHistoryMessage", resJson.data)
+          } else if (resJson.action === 'KlineNow') {
+            _this.$bus.$emit("KlineNow", resJson.data)
           }
         }
         // this.checkLogin();

@@ -711,7 +711,7 @@
   import $ from "@js/jquery.min.js";
   import BZCountDown from "@components/exchange/BZCountDown.vue";
   import {getToken} from "../../config/cookies";
-  import { mapGetters } from "vuex";
+  import {mapGetters} from "vuex";
 
   export default {
     components: {expandRow, DepthGraph, BZCountDown},
@@ -1720,7 +1720,7 @@
             "paneProperties.vertGridProperties.color": "#363c4e",
             "paneProperties.horzGridProperties.color": "#363c4e",
             "symbolWatermarkProperties.transparency": 90,
-            "scalesProperties.textColor" : "#AAA",
+            "scalesProperties.textColor": "#AAA",
             "mainSeriesProperties.candleStyle.wickUpColor": '#336854',
             "mainSeriesProperties.candleStyle.wickDownColor": '#7f323f',
           },
@@ -2238,7 +2238,7 @@
         const _this = this
         this.webSocket = this.getWebSocket
 
-        if(this.webSocket !== null) {
+        if (this.webSocket !== null) {
           this.webSocket.send(JSON.stringify({
             resource: "KlineHistory",
             action: "getHistory",
@@ -2250,9 +2250,18 @@
         }
 
         this.$bus.$on("onGetHistoryMessage", function (res) {
-          _this.$store.dispatch("setKlineHistory", res).then(()=>{
-            _this.datafeed = new Datafeeds.WebsocketFeed(_this.currentCoin);
+          _this.$store.dispatch("setKlineHistory", res).then(() => {
+            _this.datafeed = new Datafeeds.WebsocketFeed(_this.currentCoin, _this.$bus);
             _this.getKline()
+          }).then(() => {
+            _this.webSocket.send(JSON.stringify({
+              resource: "KlineNow",
+              action: "KlineNow",
+              data: {
+                pro: "BTC",
+                type: "1m"
+              }
+            }))
           })
         })
       },

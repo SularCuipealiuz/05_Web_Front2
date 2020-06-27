@@ -1,12 +1,16 @@
 import store from '@/config/store.js'
 
 let $ = require('jquery');
-let WebsocketFeed = function (coin) {
+let WebsocketFeed = function (coin, eventBus) {
   this.coin = coin;
   this.lastBar = null;
   // this.currentBar = null;
   // this.subscribe = true;
+  this.history = {}
+  this._subs = []
+  this.$bus = eventBus
 };
+
 
 WebsocketFeed.prototype.onReady = function (callback) {
   console.log('=====onReady running')
@@ -67,9 +71,7 @@ WebsocketFeed.prototype.resolveSymbol = function (symbolName, onSymbolResolvedCa
 WebsocketFeed.prototype.getBars = function (symbolInfo, resolution, from, to, onHistoryCallback, onErrorCallback, firstDataRequest) {
   console.log('=====getBars running')
   let bars = [];
-  let that = this;
-
-  // TODO 拿store資料
+  let _this = this;
 
   const array = store.getters.getKlineHistory
 
@@ -87,8 +89,10 @@ WebsocketFeed.prototype.getBars = function (symbolInfo, resolution, from, to, on
   }
 
   if (firstDataRequest) {
-    that.lastBar = bars[bars.length - 1]
-    // that.currentBar = that.lastBar;
+    console.log(history)
+    _this.lastBar = bars[bars.length - 1]
+    _this.history[symbolInfo.name] = {lastBar: _this.lastBar}
+    // _this.currentBar = _this.lastBar;
   }
 
   if (bars.length) {
@@ -98,29 +102,114 @@ WebsocketFeed.prototype.getBars = function (symbolInfo, resolution, from, to, on
   }
 };
 
-WebsocketFeed.prototype.subscribeBars = function (symbolInfo, resolution, onRealtimeCallback, listenerGUID, onResetCacheNeededCallback) {
+WebsocketFeed.prototype.subscribeBars = function (symbolInfo, resolution, onRealtimeCallback, subscriberUID, onResetCacheNeededCallback) {
   console.log('=====subscribeBars runnning')
+  const _this = this
 
-  // let that = this;
+  let channel = symbolInfo.name.split(/[:/]/)
+  const exchange = channel[0] === 'GDAX' ? 'Coinbase' : channel[0]
+  const to = channel[2]
+  const from = channel[1]
+
+  const channelString = `0~${exchange}~${from}~${to}`
+  const sub = this._subs.find(e => e.channelString === channelString)
+
+  console.log('channelString', channelString)
+
+  if (sub) {
+    // disregard the initial catchup snapshot of trades for already closed candles
+    if (data.ts < sub.lastBar.time / 1000) {
+      return
+    }
+
+    let _lastBar = updateBar(data, sub)
+
+// send the most recent bar back to TV's realtimeUpdate callback
+    sub.listener(_lastBar)
+    // update our own record of lastBar
+    sub.lastBar = _lastBar
+  }
+
+  // TODO 應該是切換幣種 or 類型
+  // socket.emit('SubAdd', {subs: [channelString]})
+
+  let newSub = {
+    channelString,
+    subscriberUID,
+    resolution,
+    symbolInfo,
+    lastBar: _this.history[symbolInfo.name].lastBar,
+    listener: onRealtimeCallback,
+  }
+  this._subs.push(newSub)
+  console.log('this._subs', this._subs)
+
+  this.$bus.$on("KlineNow", function (res) {
+  })
+
+
+  function updateBar(data, sub) {
+    let lastBar = sub.lastBar
+    let resolution = sub.resolution
+    if (resolution.includes('D')) {
+      // 1 day in minutes === 1440
+      resolution = 1440
+    } else if (resolution.includes('W')) {
+      // 1 week in minutes === 10080
+      resolution = 10080
+    }
+    let coeff = resolution * 60
+    // console.log({coeff})
+    let rounded = Math.floor(data.ts / coeff) * coeff
+    let lastBarSec = lastBar.time / 1000
+    let _lastBar
+
+    if (rounded > lastBarSec) {
+      // create a new candle, use last close as open **PERSONAL CHOICE**
+      _lastBar = {
+        time: rounded * 1000,
+        open: lastBar.close,
+        high: lastBar.close,
+        low: lastBar.close,
+        close: data.price,
+        volume: data.volume
+      }
+
+    } else {
+      // update lastBar candle!
+      if (data.price < lastBar.low) {
+        lastBar.low = data.price
+      } else if (data.price > lastBar.high) {
+        lastBar.high = data.price
+      }
+
+      lastBar.volume += data.volume
+      lastBar.close = data.price
+      _lastBar = lastBar
+    }
+    return _lastBar
+  }
+
+  // let _this = this;
   // this.stompClient.subscribe('/topic/market/trade/' + symbolInfo.name, function (msg) {
   //   let resp = JSON.parse(msg.body);
-  //   if (that.lastBar != null && resp.length > 0) {
+  //   if (_this.lastBar != null && resp.length > 0) {
   //     let price = resp[resp.length - 1].price;
-  //     that.lastBar.close = price;
-  //     if (price > that.lastBar.high) {
-  //       that.lastBar.high = price;
+  //     _this.lastBar.close = price;
+  //     if (price > _this.lastBar.high) {
+  //       _this.lastBar.high = price;
   //     }
-  //     if (price < that.lastBar.low) {
-  //       that.lastBar.low = price;
+  //     if (price < _this.lastBar.low) {
+  //       _this.lastBar.low = price;
   //     }
-  //     onRealtimeCallback(that.lastBar);
+  //     onRealtimeCallback(_this.lastBar);
   //   }
   // });
   // this.stompClient.subscribe('/topic/market/kline/' + symbolInfo.name, function (msg) {
   //   if (resolution != "1") return;
-  //   if (that.currentBar != null) onRealtimeCallback(that.currentBar);
+  //   if (_this.currentBar != null) onRealtimeCallback(_this.currentBar);
   //   let resp = JSON.parse(msg.body);
-  //   that.lastBar = {
+  //   _this.lastBar = {
   //     time: resp.time,
   //     open: resp.openPrice,
   //     high: resp.highestPrice,
@@ -128,8 +217,8 @@ WebsocketFeed.prototype.subscribeBars = function (symbolInfo, resolution, onReal
   //     close: resp.closePrice,
   //     volume: resp.volume
   //   };
-  //   that.currentBar = that.lastBar;
-  //   onRealtimeCallback(that.lastBar);
+  //   _this.currentBar = _this.lastBar;
+  //   onRealtimeCallback(_this.lastBar);
   // });
 };
 
