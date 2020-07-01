@@ -21,6 +21,9 @@
                   <router-link to="/">
                     <MenuItem name="nav-index">{{$t("header.index")}}</MenuItem>
                   </router-link>
+                  <router-link to="/exchangeForParis">
+                    <MenuItem name="nav-exchange-for-paris">{{$t("header.exchangeForParis")}}</MenuItem>
+                  </router-link>
                   <router-link to="/exchange">
                     <MenuItem name="nav-exchange">{{$t("header.exchange")}}</MenuItem>
                   </router-link>
@@ -562,14 +565,21 @@
               }
             })
             ws.send(payload)
+
           } else if (resJson.action === 'getUserBalance') {
             _this.$bus.$emit('123')
           } else if (resJson.action === 'addOrder') {
             _this.$bus.$emit("updateCurrentDelegate", resJson.data)
           } else if (resJson.action === 'getHistory') {
             _this.$bus.$emit("onGetHistoryMessage", resJson.data)
+          } else if (resJson.action === 'getContractHistory') {
+            _this.$bus.$emit("onGetContractHistoryMessage", resJson.data)
+          } else if (resJson.action === 'getParisHistory') {
+            _this.$bus.$emit("onGetParisHistoryMessage", resJson.data)
           } else if (resJson.action === 'KlineNow') {
             _this.$bus.$emit("KlineNow", resJson.data)
+          } else if (resJson.action === 'order-done') {
+            _this.$bus.$emit("clearCurrentDelegate", resJson.data)
           }
         }
         // this.checkLogin();

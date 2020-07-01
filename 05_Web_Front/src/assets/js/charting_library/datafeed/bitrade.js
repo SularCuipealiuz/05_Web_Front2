@@ -17,7 +17,7 @@ WebsocketFeed.prototype.onReady = function (callback) {
 
   let config = {};
   config.exchanges = [];
-  config.supported_resolutions = ["1", "5", "15", "30", "60", "240", "1D", "1W", "1M"];
+  config.supported_resolutions = ["1", "3", "5", "30", "60", "240", "720", "1D"],
   config.supports_group_request = false;
   config.supports_marks = false;
   config.supports_search = false;
@@ -58,7 +58,7 @@ WebsocketFeed.prototype.resolveSymbol = function (symbolName, onSymbolResolvedCa
     "description": this.coin.symbol,
     "type": "bitcoin",
     "session": "24x7",
-    "supported_resolutions": ["1", "5", "15", "30", "60", "1D", "1W", "1M"],
+    "supported_resolutions": ["1", "3", "5", "30", "60", "240", "720", "1D"],
     "pricescale": Math.pow(10, this.scale || 2),
     "ticker": "",
     "timezone": "Asia/Shanghai"
@@ -70,6 +70,8 @@ WebsocketFeed.prototype.resolveSymbol = function (symbolName, onSymbolResolvedCa
 
 WebsocketFeed.prototype.getBars = function (symbolInfo, resolution, from, to, onHistoryCallback, onErrorCallback, firstDataRequest) {
   console.log('=====getBars running')
+
+  this._subs = []
   let bars = [];
   let _this = this;
 
@@ -78,18 +80,16 @@ WebsocketFeed.prototype.getBars = function (symbolInfo, resolution, from, to, on
   for (let i = 0; i < array.length; i++) {
     bars = array.map(e => {
       return {
-        time: parseInt(e.kTime),
-        open: parseInt(e.open),
-        high: parseInt(e.top),
-        low: parseInt(e.low),
-        close: parseInt(e.close),
-        volume: parseInt(e.vol)
+        time: parseFloat(e.kTime),
+        open: parseFloat(e.open),
+        high: parseFloat(e.top),
+        low: parseFloat(e.low),
+        close: parseFloat(e.close),
+        volume: parseFloat(e.vol)
       }
     })
   }
-
   if (firstDataRequest) {
-    console.log(history)
     _this.lastBar = bars[bars.length - 1]
     _this.history[symbolInfo.name] = {lastBar: _this.lastBar}
     // _this.currentBar = _this.lastBar;
@@ -100,6 +100,8 @@ WebsocketFeed.prototype.getBars = function (symbolInfo, resolution, from, to, on
   } else {
     onHistoryCallback(bars, {noData: true});
   }
+
+  console.log('window.tvWidget', window.tvWidget)
 };
 
 WebsocketFeed.prototype.subscribeBars = function (symbolInfo, resolution, onRealtimeCallback, subscriberUID, onResetCacheNeededCallback) {
@@ -112,26 +114,6 @@ WebsocketFeed.prototype.subscribeBars = function (symbolInfo, resolution, onReal
   const from = channel[1]
 
   const channelString = `0~${exchange}~${from}~${to}`
-  const sub = this._subs.find(e => e.channelString === channelString)
-
-  console.log('channelString', channelString)
-
-  if (sub) {
-    // disregard the initial catchup snapshot of trades for already closed candles
-    if (data.ts < sub.lastBar.time / 1000) {
-      return
-    }
-
-    let _lastBar = updateBar(data, sub)
-
-// send the most recent bar back to TV's realtimeUpdate callback
-    sub.listener(_lastBar)
-    // update our own record of lastBar
-    sub.lastBar = _lastBar
-  }
-
-  // TODO 應該是切換幣種 or 類型
-  // socket.emit('SubAdd', {subs: [channelString]})
 
   let newSub = {
     channelString,
@@ -142,11 +124,15 @@ WebsocketFeed.prototype.subscribeBars = function (symbolInfo, resolution, onReal
     listener: onRealtimeCallback,
   }
   this._subs.push(newSub)
-  console.log('this._subs', this._subs)
 
   this.$bus.$on("KlineNow", function (res) {
+    const sub = _this._subs.find(e => e.channelString === channelString)
+    if (sub) {
+      let _lastBar = updateBar(res, sub)
+      sub.listener(_lastBar)
+      sub.lastBar = _lastBar
+    }
   })
-
 
   function updateBar(data, sub) {
     let lastBar = sub.lastBar
@@ -160,7 +146,7 @@ WebsocketFeed.prototype.subscribeBars = function (symbolInfo, resolution, onReal
     }
     let coeff = resolution * 60
     // console.log({coeff})
-    let rounded = Math.floor(data.ts / coeff) * coeff
+    let rounded = Math.floor((data.current.kTime / 1000) / coeff) * coeff
     let lastBarSec = lastBar.time / 1000
     let _lastBar
 
@@ -171,20 +157,19 @@ WebsocketFeed.prototype.subscribeBars = function (symbolInfo, resolution, onReal
         open: lastBar.close,
         high: lastBar.close,
         low: lastBar.close,
-        close: data.price,
-        volume: data.volume
+        close: data.current_24.lastPrice,
+        volume: data.current.vol
       }
-
     } else {
       // update lastBar candle!
-      if (data.price < lastBar.low) {
-        lastBar.low = data.price
-      } else if (data.price > lastBar.high) {
-        lastBar.high = data.price
+      if (data.current_24.lastPrice < lastBar.low) {
+        lastBar.low = data.current_24.lastPrice
+      } else if (data.current_24.lastPrice > lastBar.high) {
+        lastBar.high = data.current_24.lastPrice
       }
 
-      lastBar.volume += data.volume
-      lastBar.close = data.price
+      lastBar.volume = data.current.vol
+      lastBar.close = data.current_24.lastPrice
       _lastBar = lastBar
     }
     return _lastBar
@@ -224,7 +209,6 @@ WebsocketFeed.prototype.subscribeBars = function (symbolInfo, resolution, onReal
 
 WebsocketFeed.prototype.unsubscribeBars = function (subscriberUID) {
   console.log('=====unsubscribeBars running')
-
   this.subscribe = false;
 }
 
@@ -241,7 +225,6 @@ WebsocketFeed.prototype.periodLengthSeconds = function (resolution, requiredPeri
   } else {
     daysCount = requiredPeriodsCount * resolution / (24 * 60);
   }
-
   return daysCount * 24 * 60 * 60;
 };
 

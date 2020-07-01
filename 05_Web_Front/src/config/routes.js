@@ -50,6 +50,8 @@ export default [
     { path: '/exchange/:pair', component: resolve=>(require(["../pages/exchange/exchange"],resolve)), name: "ExchangePair"},
     { path: '/exchangeForSecond', component: resolve=>(require(["../pages/exchangeForSecond/exchangeForSecond"],resolve)) },
     { path: '/exchangeForSecond/:pair', component: resolve=>(require(["../pages/exchangeForSecond/exchangeForSecond"],resolve)), name: "ExchangeForSecondPair"},
+    { path: '/exchangeForParis', component: resolve=>(require(["../pages/exchangeForParis/exchangeForParis"],resolve)) },
+    { path: '/exchangeForParis/:pair', component: resolve=>(require(["../pages/exchangeForParis/exchangeForParis"],resolve)), name: "ExchangeForParisPair"},
     { path: '/help', component: resolve=>(require(["../pages/cms/help"],resolve)) },
     { path: '/helplist', component: resolve=>(require(["../pages/cms/HelpList"],resolve)) },
     { path: '/helpdetail', component: resolve=>(require(["../pages/cms/HelpDetail"],resolve)) },

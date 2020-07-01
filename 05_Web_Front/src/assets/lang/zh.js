@@ -21,8 +21,9 @@
     },
     header: {
         index: '首页',
-        exchange: '币币交易',
+        exchange: '合约交易',
         exchangeForSecond: '秒秒交易',
+        exchangeForParis: '币币交易',
         otc: '法币交易',
         kefu: '帮助中心',
         asset: '财务中心',
